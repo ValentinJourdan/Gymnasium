@@ -244,6 +244,11 @@ class SyncVectorEnv(VectorEnv):
         Returns:
             The batched environment step results
         """
+        actions_array = np.asarray(actions)
+        if actions_array.shape[0] != self.num_envs:
+            raise ValueError(
+                f"Expected {self.num_envs} actions but got {actions_array.shape[0]}."
+            )
         actions = iterate(self.action_space, actions)
 
         infos = {}
