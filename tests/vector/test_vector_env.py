@@ -317,3 +317,55 @@ def test_partial_reset_failure(vectoriser):
         ),
     ):
         envs.reset(options={"reset_mask": np.array([1.0, 1.0, 0.0])})
+
+
+@pytest.mark.parametrize(
+    "vectoriser",
+    (
+        SyncVectorEnv,
+        partial(AsyncVectorEnv, shared_memory=True),
+        partial(AsyncVectorEnv, shared_memory=False),
+    ),
+    ids=["Sync", "Async with shared memory", "Async without shared memory"],
+)
+def test_step_wrong_number_of_actions(vectoriser):
+    """Test that step raises ValueError when the number of actions doesn't match num_envs."""
+    env_fns = [make_env("CartPole-v1", i) for i in range(4)]
+    envs = vectoriser(env_fns, autoreset_mode=AutoresetMode.DISABLED)
+
+    try:
+        envs.reset()
+
+        # Correct number of actions - should work
+        correct_actions = envs.action_space.sample()
+        if isinstance(envs, AsyncVectorEnv):
+            envs.step_async(correct_actions)
+            obs, rewards, terminations, truncations, infos = envs.step_wait(timeout=5)
+        else:
+            obs, rewards, terminations, truncations, infos = envs.step(correct_actions)
+        assert obs.shape == (4, 4)
+
+        # Too few actions (3 instead of 4) - should raise ValueError
+        too_few_actions = correct_actions[:3]
+        if isinstance(envs, AsyncVectorEnv):
+            with pytest.raises(ValueError):
+                envs.step_async(too_few_actions)
+                envs.step_wait(timeout=5)
+        else:
+            with pytest.raises(ValueError):
+                envs.step(too_few_actions)
+
+        # Reset for next test
+        envs.reset()
+
+        # Too many actions (5 instead of 4) - should raise ValueError
+        too_many_actions = np.concatenate([correct_actions, [envs.action_space.sample()[-1]]])
+        if isinstance(envs, AsyncVectorEnv):
+            with pytest.raises(ValueError):
+                envs.step_async(too_many_actions)
+                envs.step_wait(timeout=5)
+        else:
+            with pytest.raises(ValueError):
+                envs.step(too_many_actions)
+    finally:
+        envs.close()
