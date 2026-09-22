@@ -317,3 +317,62 @@ def test_partial_reset_failure(vectoriser):
         ),
     ):
         envs.reset(options={"reset_mask": np.array([1.0, 1.0, 0.0])})
+
+
+@pytest.mark.parametrize(
+    "vectoriser",
+    (
+        SyncVectorEnv,
+        partial(AsyncVectorEnv, shared_memory=True),
+        partial(AsyncVectorEnv, shared_memory=False),
+    ),
+    ids=["Sync", "Async(shared_memory=True)", "Async(shared_memory=False)"],
+)
+def test_step_invalid_action_count(vectoriser):
+    """Test that step() raises ValueError when the number of actions doesn't match num_envs."""
+    num_envs = 3
+    env_fns = [make_env("CartPole-v1", i) for i in range(num_envs)]
+    env = vectoriser(env_fns)
+    env.reset()
+
+    # Correct number of actions should work
+    correct_actions = env.action_space.sample()
+    env.step(correct_actions)
+
+    # Too few actions
+    with pytest.raises(ValueError, match="number of actions"):
+        env.step([0])
+
+    # Too many actions
+    with pytest.raises(ValueError, match="number of actions"):
+        env.step([0, 1, 0, 1, 0])
+
+    env.close()
+
+
+@pytest.mark.parametrize(
+    "vectoriser",
+    (
+        SyncVectorEnv,
+        partial(AsyncVectorEnv, shared_memory=True),
+        partial(AsyncVectorEnv, shared_memory=False),
+    ),
+    ids=["Sync", "Async(shared_memory=True)", "Async(shared_memory=False)"],
+)
+def test_step_invalid_action_value(vectoriser):
+    """Test that step() raises ValueError when an action is out of the valid range."""
+    num_envs = 3
+    env_fns = [make_env("CartPole-v1", i) for i in range(num_envs)]
+    env = vectoriser(env_fns)
+    env.reset()
+
+    # Valid actions
+    valid_actions = env.action_space.sample()
+    env.step(valid_actions)
+
+    # Discrete(2) action space: valid values are 0 and 1
+    # Pass an action value that is out of range
+    with pytest.raises(ValueError, match="action"):
+        env.step([0, 1, 5])
+
+    env.close()
