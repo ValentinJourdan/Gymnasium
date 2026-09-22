@@ -244,7 +244,11 @@ class SyncVectorEnv(VectorEnv):
         Returns:
             The batched environment step results
         """
-        actions = iterate(self.action_space, actions)
+        actions = list(iterate(self.action_space, actions))
+        if len(actions) != self.num_envs:
+            raise ValueError(
+                f"Expected {self.num_envs} actions, got {len(actions)}"
+            )
 
         infos = {}
         for i, action in enumerate(actions):
